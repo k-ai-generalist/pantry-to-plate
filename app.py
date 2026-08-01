@@ -248,24 +248,57 @@ div[data-testid="stHorizontalBlock"] .stButton > button:hover{
 
 /* login gate */
 .login-shell{
-  max-width:420px; margin:14vh auto 0; text-align:center;
+  max-width:440px; margin:12vh auto 0; text-align:center;
   animation:fadeUp .7s ease both;
 }
+.login-flames{
+  display:flex; justify-content:center; gap:6px;
+  align-items:flex-end; height:30px; margin-bottom:6px;
+}
+.login-flames .lf{
+  width:10px; height:20px;
+  border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;
+  background:linear-gradient(to top, var(--flame) 15%, var(--flame-core) 70%, #fff3d6);
+  transform-origin:bottom center;
+  animation:loginFlame .5s ease-in-out infinite alternate;
+  filter:blur(.4px);
+}
+.login-flames .lf:nth-child(2){ height:26px; animation-delay:.1s; }
+.login-flames .lf:nth-child(3){ height:16px; animation-delay:.22s; }
+.login-flames .lf:nth-child(4){ height:24px; animation-delay:.05s; }
+.login-flames .lf:nth-child(5){ height:18px; animation-delay:.15s; }
+@keyframes loginFlame{
+  from{ transform:scaleY(.82) scaleX(1.08); }
+  to{ transform:scaleY(1.14) scaleX(.9) translateY(-2px); }
+}
 .login-shell .login-mark{
-  width:56px; height:56px; margin:0 auto 20px; border-radius:16px;
+  width:60px; height:60px; margin:0 auto 22px; border-radius:18px;
   background:linear-gradient(135deg,var(--copper-hot),var(--copper-deep));
   display:flex; align-items:center; justify-content:center; color:#2a1c0d;
-  box-shadow:0 8px 22px rgba(217,142,74,.4);
+  box-shadow:0 10px 26px rgba(217,142,74,.45), inset 0 1px 0 rgba(255,255,255,.35);
 }
 .login-shell h2{
-  font-family:'Fraunces',serif; font-weight:600; font-size:28px;
-  color:var(--cream); margin:0 0 10px;
+  font-family:'Fraunces',serif; font-weight:600; font-size:32px;
+  letter-spacing:-.02em; color:var(--cream); margin:0 0 10px;
 }
-.login-shell p{
-  font-size:14.5px; color:#a3947c; line-height:1.6; margin:0 0 28px; font-weight:300;
+.login-shell .login-tag{
+  font-family:'Fraunces',serif; font-style:italic;
+  font-size:15.5px; color:#c4b298; line-height:1.6; margin:0 0 26px; font-weight:400;
 }
-div[data-testid="stButton"] button.google-btn{ /* placeholder, real style below applies to first button */ }
-.stButton > button[kind="primary"].glogin{ }
+.login-error{
+  text-align:center; font-size:13px; color:#e8a08a;
+  background:rgba(193,68,14,.12);
+  border:1px solid rgba(193,68,14,.35);
+  border-radius:12px; padding:11px 16px; margin-top:12px;
+  animation:errShake .4s ease;
+}
+@keyframes errShake{
+  0%,100%{ transform:translateX(0); }
+  20%{ transform:translateX(-6px); }
+  40%{ transform:translateX(6px); }
+  60%{ transform:translateX(-4px); }
+  80%{ transform:translateX(4px); }
+}
 
 /* user chip in sidebar */
 .user-chip{
@@ -274,6 +307,13 @@ div[data-testid="stButton"] button.google-btn{ /* placeholder, real style below 
   border-radius:12px; padding:10px 12px; margin-bottom:10px;
 }
 .user-chip img{ width:30px; height:30px; border-radius:50%; }
+.user-chip .initial-avatar{
+  width:32px; height:32px; border-radius:50%;
+  background:linear-gradient(135deg,var(--copper-hot),var(--copper-deep));
+  color:#2a1c0d; font-weight:700; font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 3px 8px rgba(217,142,74,.35);
+}
 .user-chip .name{ font-size:13.5px; font-weight:600; color:var(--cream); }
 .user-chip .email{ font-size:11.5px; color:#a3947c; }
 
@@ -388,77 +428,81 @@ div[role="radiogroup"] label > div:first-child{ display:none; } /* hide radio ci
 )
 
 # ──────────────────────────────────────────────────────────────
-# Google login gate
+# Name-based login gate (no Google / OAuth involved)
 # ──────────────────────────────────────────────────────────────
-# Requires an [auth] block in secrets.toml (see .streamlit/secrets.toml.example).
-# Without it, st.login() has nothing to connect to, so the app runs unauthenticated.
-AUTH_CONFIGURED = "auth" in st.secrets
-
-# Only these first names are allowed in, regardless of which Google account
-# they sign in with. Matching is case-insensitive.
+# Only these first names may enter. Matching is case-insensitive.
 ALLOWED_NAMES = {"biplav", "abhishek", "sonali", "anwesh", "sourav", "kirtiman"}
 
 
-def _first_name(user) -> str:
-    given = (user.get("given_name") or "").strip()
-    if given:
-        return given
-    full = (user.get("name") or "").strip()
-    return full.split()[0] if full else ""
+def _check_name(raw: str) -> str | None:
+    """Return the canonical (title-cased) name if allowed, else None."""
+    cleaned = (raw or "").strip().lower()
+    if not cleaned:
+        return None
+    # accept "kirtiman" as well as "Kirtiman Sarangi"
+    if cleaned in ALLOWED_NAMES:
+        return cleaned.title()
+    first_word = cleaned.split()[0]
+    if first_word in ALLOWED_NAMES:
+        return first_word.title()
+    return None
 
 
-def _name_allowed(user) -> bool:
-    first = _first_name(user).lower()
-    full = (user.get("name") or "").lower()
-    if first in ALLOWED_NAMES:
-        return True
-    # fallback: catches cases like "Kirtiman Sarangi" if given_name wasn't provided
-    return any(allowed in full.split() for allowed in ALLOWED_NAMES)
+def _attempt_login():
+    name = _check_name(st.session_state.get("login_name", ""))
+    if name:
+        st.session_state.auth_name = name
+        st.session_state.login_error = False
+    else:
+        st.session_state.login_error = True
 
 
-if AUTH_CONFIGURED:
-    if not st.user.is_logged_in:
-        st.markdown(
-            """
-            <div class="login-shell">
-              <div class="login-mark">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 11h18"/><path d="M5 11a7 7 0 0 1 14 0"/><path d="M12 4v1"/><path d="M8 15l-2 5"/><path d="M16 15l2 5"/>
-                </svg>
-              </div>
-              <h2>Pantry to Plate</h2>
-              <p>Sign in with Google to start cooking.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
+if "auth_name" not in st.session_state:
+    st.session_state.auth_name = None
+if "login_error" not in st.session_state:
+    st.session_state.login_error = False
+
+if st.session_state.auth_name is None:
+    st.markdown(
+        """
+        <div class="login-shell">
+          <div class="login-flames" aria-hidden="true">
+            <span class="lf"></span><span class="lf"></span><span class="lf"></span>
+            <span class="lf"></span><span class="lf"></span>
+          </div>
+          <div class="login-mark">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11h18"/><path d="M5 11a7 7 0 0 1 14 0"/><path d="M12 4v1"/><path d="M8 15l-2 5"/><path d="M16 15l2 5"/>
+            </svg>
+          </div>
+          <h2>Pantry to Plate</h2>
+          <p class="login-tag">A private kitchen &mdash; tell us who's cooking tonight.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_a, col_b, col_c = st.columns([1, 1.6, 1])
+    with col_b:
+        st.text_input(
+            "Your name",
+            key="login_name",
+            placeholder="Type your name and press Enter…",
+            label_visibility="collapsed",
+            on_change=_attempt_login,
         )
-        col_a, col_b, col_c = st.columns([1, 1.3, 1])
-        with col_b:
-            if st.button("🔐 Continue with Google", type="primary", use_container_width=True):
-                st.login("google")
-        st.stop()
+        if st.button("🔥 Enter the kitchen", type="primary", use_container_width=True):
+            _attempt_login()
+            if st.session_state.auth_name:
+                st.rerun()
 
-    elif not _name_allowed(st.user):
-        st.markdown(
-            f"""
-            <div class="login-shell">
-              <div class="login-mark" style="background:linear-gradient(135deg,#e07a5f,#a8342a);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
-                </svg>
-              </div>
-              <h2>Not on the guest list</h2>
-              <p>Signed in as <strong style="color:var(--cream)">{st.user.get('name', 'this account')}</strong> ({st.user.get('email','')}) &mdash;
-              this kitchen is invite-only. Ask the host to add your name, or try a different account.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        col_a, col_b, col_c = st.columns([1, 1.3, 1])
-        with col_b:
-            if st.button("Try a different account", type="primary", use_container_width=True):
-                st.logout()
-        st.stop()
+        if st.session_state.login_error:
+            st.markdown(
+                '<p class="login-error">Hmm, that name isn\u2019t on tonight\u2019s guest list. '
+                "Check the spelling, or ask the host for an invite.</p>",
+                unsafe_allow_html=True,
+            )
+    st.stop()
 
 # ──────────────────────────────────────────────────────────────
 # State
@@ -680,24 +724,24 @@ def cook(surprise: bool, diet: str, cuisine: str):
 with st.sidebar:
     st.markdown("### Settings")
 
-    if AUTH_CONFIGURED and st.user.is_logged_in:
-        avatar = st.user.get("picture", "")
-        name = st.user.get("name", "Signed in")
-        email = st.user.get("email", "")
+    if st.session_state.auth_name:
+        initial = st.session_state.auth_name[0].upper()
         st.markdown(
             f"""
             <div class="user-chip">
-              {f'<img src="{avatar}" alt="">' if avatar else '👤'}
+              <div class="initial-avatar">{initial}</div>
               <div>
-                <div class="name">{name}</div>
-                <div class="email">{email}</div>
+                <div class="name">{st.session_state.auth_name}</div>
+                <div class="email">In the kitchen tonight</div>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("Log out", use_container_width=True):
-            st.logout()
+        if st.button("Leave the kitchen", use_container_width=True):
+            st.session_state.auth_name = None
+            st.session_state.login_error = False
+            st.rerun()
         st.divider()
 
     if not (os.environ.get("ANTHROPIC_API_KEY") or "ANTHROPIC_API_KEY" in st.secrets):
@@ -719,7 +763,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<p class="hero-sub">Toss in whatever\u2019s at home. Our stove does the thinking — '
+    f'<p class="hero-sub">Welcome back, <strong>{st.session_state.auth_name}</strong>. '
+    "Toss in whatever\u2019s at home — our stove does the thinking: "
     "<strong>one great dish</strong>, the shortest shopping list, and every step to get there.</p>",
     unsafe_allow_html=True,
 )
