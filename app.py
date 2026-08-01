@@ -431,7 +431,7 @@ div[role="radiogroup"] label > div:first-child{ display:none; } /* hide radio ci
 # Name-based login gate (no Google / OAuth involved)
 # ──────────────────────────────────────────────────────────────
 # Only these first names may enter. Matching is case-insensitive.
-ALLOWED_NAMES = {"biplav", "abhishek", "sonali", "anwesh", "sourav", "kirtiman"}
+ALLOWED_NAMES = {"biplav", "abhishek", "sonali", "anwesh", "sourav", "kirtiman","manisha"}
 
 
 def _check_name(raw: str) -> str | None:
