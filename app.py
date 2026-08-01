@@ -394,6 +394,28 @@ div[role="radiogroup"] label > div:first-child{ display:none; } /* hide radio ci
 # Without it, st.login() has nothing to connect to, so the app runs unauthenticated.
 AUTH_CONFIGURED = "auth" in st.secrets
 
+# Only these first names are allowed in, regardless of which Google account
+# they sign in with. Matching is case-insensitive.
+ALLOWED_NAMES = {"biplav", "abhishek", "sonali", "anwesh", "sourav", "kirtiman"}
+
+
+def _first_name(user) -> str:
+    given = (user.get("given_name") or "").strip()
+    if given:
+        return given
+    full = (user.get("name") or "").strip()
+    return full.split()[0] if full else ""
+
+
+def _name_allowed(user) -> bool:
+    first = _first_name(user).lower()
+    full = (user.get("name") or "").lower()
+    if first in ALLOWED_NAMES:
+        return True
+    # fallback: catches cases like "Kirtiman Sarangi" if given_name wasn't provided
+    return any(allowed in full.split() for allowed in ALLOWED_NAMES)
+
+
 if AUTH_CONFIGURED:
     if not st.user.is_logged_in:
         st.markdown(
@@ -414,6 +436,28 @@ if AUTH_CONFIGURED:
         with col_b:
             if st.button("🔐 Continue with Google", type="primary", use_container_width=True):
                 st.login("google")
+        st.stop()
+
+    elif not _name_allowed(st.user):
+        st.markdown(
+            f"""
+            <div class="login-shell">
+              <div class="login-mark" style="background:linear-gradient(135deg,#e07a5f,#a8342a);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+                </svg>
+              </div>
+              <h2>Not on the guest list</h2>
+              <p>Signed in as <strong style="color:var(--cream)">{st.user.get('name', 'this account')}</strong> ({st.user.get('email','')}) &mdash;
+              this kitchen is invite-only. Ask the host to add your name, or try a different account.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col_a, col_b, col_c = st.columns([1, 1.3, 1])
+        with col_b:
+            if st.button("Try a different account", type="primary", use_container_width=True):
+                st.logout()
         st.stop()
 
 # ──────────────────────────────────────────────────────────────
